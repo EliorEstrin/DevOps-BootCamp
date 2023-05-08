@@ -1,0 +1,22 @@
+version: '3'
+services:
+  flask:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    depends_on:
+      - es
+  es:
+    image: elasticsearch:7.10.1
+    environment:
+      - "discovery.type=single-node"
+  proxy:
+    build: 
+      context: .
+      dockerfile: Dockerfile.proxy
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+    ports:
+      - "80:80"
+    depends_on:
+      - flask

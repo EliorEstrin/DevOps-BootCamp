@@ -1,0 +1,34 @@
+FROM node:alpine as builder
+
+# Stage 1 : Generate static files
+WORKDIR /app
+COPY webpack.config.js /app
+COPY package.json package-lock.json /app/
+
+# Copy the source files
+RUN mkdir -p /app/static/src
+COPY static /app/static
+
+# COPY static/src static/src
+RUN npm install
+RUN npm run build
+
+
+
+
+
+
+
+# Stage 2: Run the application with nginx
+FROM nginx:alpine
+# Create a static directory from the compiled files from node
+RUN mkdir -p /usr/share/nginx/html/static
+
+# # Copy the Static file into the static directory
+COPY --from=builder /app/static /usr/share/nginx/html/static
+
+# Copy the index.html into the html folder and name it as index.html
+COPY ./templates/index.html /usr/share/nginx/html/index.html
+
+# Nginx will run in the foreground and produce output to the terminal,
+CMD ["nginx", "-g", "daemon off;"]
