@@ -1,0 +1,23 @@
+FROM maven:3.8.6-openjdk-8 as builder
+
+
+# copy source files
+COPY src /app/src
+COPY pom.xml LICENSE-GPLv3.txt /app/
+
+
+WORKDIR /app
+
+# build The documentation Folder
+RUN mvn clean stampo:build
+
+
+#Stage 2
+FROM nginx
+
+
+# Copy the static files from the webite to the nginx new image
+COPY --from=builder  /app/target/lavagna/help /usr/share/nginx/html
+
+# Start the Nginx process
+CMD ["nginx", "-g", "daemon off;"]
