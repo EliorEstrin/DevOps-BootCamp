@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-configmap
+data:
+  # this values depends on the name of mongo , -headless is beacause this is the behavior of the mongo chart
+  mongo-url: mongodb://{{ .Values.mongodb.auth.rootUser }}:{{ .Values.mongodb.auth.rootPassword }}@{{ .Values.mongodb.fullnameOverride }}-headless
+  log_level: {{ .Values.enviroment.logLevel | quote }} 
+  presistence: {{ .Values.enviroment.presistence | quote }}

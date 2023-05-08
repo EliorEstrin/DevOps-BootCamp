@@ -1,0 +1,5 @@
+controller:
+  service:
+    loadBalancerIP: 35.225.115.101
+
+

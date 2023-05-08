@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: democrm-argo-application
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: us-central1-docker.pkg.dev/top-creek-375614/demo-crm/democrm:^1
+    argocd-image-updater.argoproj.io/write-back-method: git
+    argocd-image-updater.argoproj.io/git-branch: master
+spec:
+  destination:
+    name: ''
+    namespace: default
+    server: 'https://kubernetes.default.svc'
+  source:
+    path: crm-charts
+    repoURL: 'git@github.com:elior7557/democrm_charts.git'
+    targetRevision: HEAD
+  project: default
+  syncPolicy:
+    automated:
+# Delete resources when they are no longer definded in git
+      prune: true
+# when the clusterstate deviates from desiered state in git we want always the cluster be as it defined in git
+      selfHeal: true 
+

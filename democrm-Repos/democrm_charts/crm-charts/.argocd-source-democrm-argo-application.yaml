@@ -1,0 +1,8 @@
+helm:
+  parameters:
+  - name: image.name
+    value: us-central1-docker.pkg.dev/top-creek-375614/demo-crm/democrm
+    forcestring: true
+  - name: image.tag
+    value: "1.1"
+    forcestring: true
