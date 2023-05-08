@@ -1,0 +1,2 @@
+Simulating renewal of an existing certificate for learnandadapt.today
+The dry run was successful.
