@@ -1,0 +1,24 @@
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-myservicea
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cluster-issuer"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - elior-crm.ddns.net 
+    secretName: letsencrypt-cert
+  rules:
+  - host: elior-crm.ddns.net 
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: my-service
+            port:
+              number: 80

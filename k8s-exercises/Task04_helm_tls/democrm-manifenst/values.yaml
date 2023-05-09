@@ -1,0 +1,69 @@
+
+# name for labels and deployment
+name: "example"
+
+
+# enviroment values for the deployment
+# the mongo url should be behind the sence happening
+enviroment:
+  logLevel: "info"
+  presistence: "true"
+
+
+# Deployment values
+deployment:
+  image: us-central1-docker.pkg.dev/top-creek-375614/demo-crm/democrm:1
+  port: '3000' #application is running on port 3000
+  replicas: 3
+
+
+#Requests and limits for deployment
+resources:
+  requests:
+    memory: "16Mi"
+    cpu: "125m"
+  limits:
+    memory: "128Mi"
+    cpu: "500m"
+
+
+# mongo db Values must be declared so the apllication will be connect to the db
+mongodb:
+  # FullnameOverride is the prefix for all services and resources that will be created by the mongo sub-chart
+  fullnameOverride: "mongo-mongodb"
+  auth:
+    # Database credenditals 
+    rootUser: root
+    rootPassword: "secure_password"
+  persistence:
+    size: 2Gi
+
+
+
+
+
+# Cron Job to reset the data base 
+cronjob:
+  enabled: true
+  # schedule is the schedule of the cron job
+  schedule: "0 0 * * *"
+
+
+
+
+
+# Configuration should run behind load balancer or ingress
+# ingress false means the app would be deplpyed using a lb and not and ingress
+ingress:
+  enabled: true
+  # tls means wether to deploy with a tls certificate or not
+  tls: false
+  # host is the dns for the ingress
+  host: crm-elior.ddns.net
+#
+# If ingress true, the following information needs to be know:
+ingress-nginx:
+  controller:
+    service:
+      loadBalancerIP: 35.226.92.83
+

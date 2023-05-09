@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: reset-db
+spec:
+  schedule: "0 0 * * *" 
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: reset-db
+            image: docker.io/bitnami/mongodb:6.0.4-debian-11-r0 
+            imagePullPolicy: IfNotPresent
+            env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: appsecret
+                  key: DB_USER
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: appsecret
+                  key: DB_PASS
+            command:
+            - bash
+            - "-c"
+            - mongosh "mongodb://$DB_USER:$DB_PASS@mongo-mongodb-0.mongo-mongodb-headless,mongo-mongodb-1.mongo-mongodb-headless,mongo-mongodb-2.mongo-mongodb-headless?replicaSet=rs0" --eval "db.clients.drop()"
+            
+              
+          restartPolicy: OnFailure

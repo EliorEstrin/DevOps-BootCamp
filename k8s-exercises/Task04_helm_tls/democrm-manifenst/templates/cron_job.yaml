@@ -1,0 +1,33 @@
+{{- if .Values.cronjob.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: reset-db
+spec:
+  schedule: {{ .Values.cronjob.schedule | quote }} 
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: reset-db
+            image: docker.io/bitnami/mongodb:6.0.4-debian-11-r0 
+            imagePullPolicy: IfNotPresent
+            env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: appsecret
+                  key: DB_USER
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: appsecret
+                  key: DB_PASS
+            command:
+            - bash
+            - "-c"
+            - mongosh "mongodb://$DB_USER:$DB_PASS@{{ .Values.mongodb.fullnameOverride }}-headless" --eval "db.clients.drop()"
+          restartPolicy: OnFailure
+{{- end }}
+

@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: crm-app 
+  namespace: default
+spec:
+  dnsNames:
+    - elior-democrm.ddns.net 
+  secretName: example-letsencrypt-cert 
+  issuerRef:
+    name: letsencrypt-cluster-issuer
+    kind: ClusterIssuer

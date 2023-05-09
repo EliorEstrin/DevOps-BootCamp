@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: task1-deployment
+  labels:
+    app: app-crm-test
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: app-crm
+  template:
+    metadata:
+      labels:
+        app: app-crm
+    spec:
+      containers:
+      - name: demo-crm
+        image: us-central1-docker.pkg.dev/top-creek-375614/demo-crm/democrm:1
+        ports:
+        - containerPort: 3000
+        env:
+        - name: MONGODB_URI
+          valueFrom:
+            configMapKeyRef:
+              name: mongo-config
+              key: mongo-url
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: mongo-config
+              key: log_level
+        - name: PERSISTENCE
+          valueFrom:
+            configMapKeyRef:
+              name: mongo-config
+              key: presistence      

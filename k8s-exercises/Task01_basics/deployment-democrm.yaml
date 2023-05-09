@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: task1-deployment
+  labels:
+    app: app-crm-test
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: app-crm
+  template:
+    metadata:
+      labels:
+        app: app-crm
+    spec:
+      containers:
+      - name: demo-crm
+        image: pwstaging/demo-crm
+        ports:
+        - containerPort: 3000
+

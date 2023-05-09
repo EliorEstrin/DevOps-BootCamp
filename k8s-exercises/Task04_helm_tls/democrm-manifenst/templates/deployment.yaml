@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name | quote }}
+  labels:
+    app: {{ .Values.name | quote }}
+spec:
+  replicas: {{ .Values.deployment.replicas  }}
+  selector:
+    matchLabels:
+      app: {{ .Values.name | quote }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name | quote }}
+    spec:
+      containers:
+      - name: {{ .Values.name | quote }}
+        image: {{ .Values.deployment.image | quote}}
+        ports:
+        - containerPort: {{ .Values.deployment.port }}
+        env:
+        # - name: MONGODB_URI
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: appsecret
+        #       key: DB_URL
+        - name: MONGODB_URI
+          valueFrom:
+            configMapKeyRef:
+              name: {{ .Release.Name }}-configmap
+              key: mongo-url
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: {{ .Release.Name }}-configmap
+              key: log_level
+        - name: PERSISTENCE
+          valueFrom:
+            configMapKeyRef:
+              name: {{ .Release.Name }}-configmap
+              key: presistence 
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+         
+
