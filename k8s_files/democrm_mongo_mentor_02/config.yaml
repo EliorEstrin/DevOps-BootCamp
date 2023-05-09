@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-crm-conf
+data:
+  # https://www.mongodb.com/docs/manual/reference/connection-string/#connection-string-uri-format
+  MONGODB_URI: "mongodb://mongo-0.mongodb,mongo-1.mongodb,mongo-2.mongodb:27017"
+  LOG_LEVEL: "info"
+  PERSISTENCE: "true"

@@ -1,0 +1,15 @@
+# #Headless service to control the network domain for all pod with label of mongodb
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo-service
+  labels:
+    app: mongo
+spec:
+  ports:
+  - port: 27017
+    targetPort: 27017
+    name: mongo
+  clusterIP: None
+  selector:
+    app: mongo
