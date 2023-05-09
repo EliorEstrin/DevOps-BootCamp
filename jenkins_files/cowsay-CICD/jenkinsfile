@@ -1,0 +1,88 @@
+pipeline {
+    
+    agent any
+    
+ options {
+      gitLabConnection('gitlab_conection')
+    }
+    stages {
+
+        stage('checkout'){
+            steps{
+                deleteDir()
+                checkout scm
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh "docker build . -t elior-cowsay"
+            }
+        }
+        stage('Test') {
+            steps {   
+               sh """
+                docker run -dit --name cowsay_mission -p 4001:3001 -e PORT=3001 --network minimal-ci-lab_default  elior-cowsay
+                sleep 10
+                curl cowsay_mission:3001
+                """
+            }
+        }
+
+        stage('Clean Enviroment'){
+            steps{
+                sh "docker rm cowsay_mission -f"
+            }
+
+
+        }
+
+        stage('Publish') {
+            steps {
+                script{
+                    docker.withRegistry("http://644435390668.dkr.ecr.eu-west-3.amazonaws.com", "ecr:eu-west-3:16f6c652-dbff-4944-a38b-fba1c8842d4c") {    
+                    docker.image("elior-cowsay").push()
+                    }
+
+                }
+                     
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                sh """
+                 scp init-cowsay.sh ubuntu@13.39.105.120:/home/ubuntu
+                 ssh ubuntu@13.39.105.120 /home/ubuntu/init-cowsay.sh
+                 """
+            }
+
+        }
+    }
+
+    post {
+        
+
+      failure {     
+     mail subject: 'Build Report',
+          body: "The build has completed with status failure. Check the build results at ${env.BUILD_URL}.",
+          to: sh(returnStdout: true, script: 'git log --format="%ae" | head -1').trim();
+          updateGitlabCommitStatus name: 'build', state: 'failed'
+        
+      }
+      success {
+        mail subject: 'Build Report',
+          body: "The build has completed with status success!. Check the build results at ${env.BUILD_URL}.",
+          to: sh(returnStdout: true, script: 'git log --format="%ae" | head -1').trim();
+        updateGitlabCommitStatus name: 'build', state: 'success'
+
+        
+      }
+      aborted {
+        updateGitlabCommitStatus name: 'build', state: 'canceled'
+      }
+
+}
+
+
+}

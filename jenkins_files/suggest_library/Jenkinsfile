@@ -1,0 +1,111 @@
+//Increment tag of a tag
+def increment_tag(tag) {
+  // Extract the parts of the tag
+    def major = tag.split("\\.")[0]
+    def minor = tag.split("\\.")[1]
+    def patch
+    try{
+        patch = tag.split("\\.")[2]
+    }
+    catch (Exception e)
+    {
+        patch = 0
+    }
+    
+    patch = patch.toInteger() + 1
+
+    def incremented_tag = "${major}.${minor}.${patch}"
+   return incremented_tag
+}
+
+
+def scm_tag
+
+
+
+pipeline{
+
+    agent any
+    tools{
+      jdk 'jdk-8'
+      maven 'mvn'
+    }
+
+    stages{
+        
+        stage("checkout"){
+            steps{
+                deleteDir()
+                checkout scm
+            }
+        }
+        stage("E2E test"){
+            steps{
+                sh "mvn verify"    
+            }
+
+        }
+
+        stage("publish to snapshots"){
+            when{
+                expression { env.BRANCH_NAME == "main"}
+             }
+            steps{
+                configFileProvider(
+                    [configFile(fileId: 'suggestlibArtifactory', variable: 'MAVEN_SETTINGS')]) {
+                    sh 'mvn -s $MAVEN_SETTINGS deploy'
+                }
+            }
+        }
+
+        stage("publish to relase"){
+            when{
+                expression { env.BRANCH_NAME.find(/^release\/.*/) }
+            }
+            steps{
+                script{
+                //Get the tag of the last branch
+                sh "echo about to relase to master"
+                 withCredentials([gitUsernamePassword(credentialsId: "aec0528f-ae70-4d3c-9ee0-4957a17a679f", gitToolName: 'git-tool')]) {   
+                sh "git fetch --tags" 
+                sh "git describe --tags || echo notags"
+                sh "git tag" 
+                }
+                sh "git describe --tags || echo notags"
+                def current_tag = sh(returnStdout: true, script: "git describe --tags --abbrev=0 || echo ${env.BRANCH_NAME} | cut -d'/' -f2 ").trim()
+                
+                echo "current tag is $current_tag"
+                scm_tag = increment_tag(current_tag)
+                echo "current tag is $scm_tag"
+                }
+
+
+                //publish to artifactory
+                configFileProvider(
+                    [configFile(fileId: 'suggestlibArtifactory', variable: 'MAVEN_SETTINGS')]) {
+                    sh "mvn versions:set -DnewVersion=${scm_tag}"
+                    sh 'mvn -s $MAVEN_SETTINGS deploy'
+                }
+            }
+
+        }
+
+        stage("updae scm with a new tag"){
+            when{
+                expression { env.BRANCH_NAME.find(/^release\/.*/) }
+            }
+            steps{
+                withCredentials([gitUsernamePassword(credentialsId: "aec0528f-ae70-4d3c-9ee0-4957a17a679f", gitToolName: 'git-tool')]) {   
+                sh """
+                    git tag ${scm_tag}
+                    git push --tags
+                   """                
+                   }
+               
+            }
+
+        }
+   
+   
+    }
+}

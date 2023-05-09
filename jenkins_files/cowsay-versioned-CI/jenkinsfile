@@ -1,0 +1,157 @@
+//Increment tag of a tag
+def increment_tag(tag) {
+  // Extract the parts of the tag
+    def major = tag.split("\\.")[0]
+    def minor = tag.split("\\.")[1]
+    def patch = tag.split("\\.")[2]
+    patch = patch.toInteger() + 1
+
+    def incremented_tag = "${major}.${minor}.${patch}"
+   return incremented_tag
+}
+
+def cosSayImage
+def newTag
+def shouldBuild=true
+
+
+pipeline {
+
+    agent any
+    parameters {
+        string(name: 'VERSION', defaultValue: '1.0', description: 'The version to build')
+    }
+
+    environment {
+    GITLAB_CRED_ID="aec0528f-ae70-4d3c-9ee0-4957a17a679f"
+  }
+
+    options {
+      gitLabConnection('gitlab_conection')
+    }
+
+    stages {
+
+      stage('checkout'){
+            steps{
+                
+                deleteDir()
+                checkout scm
+                script{
+                sh  "echo ${env.gitlabUserName}"       
+                if (env.gitlabUserName == null || env.gitlabUserName != "jenkins") {
+                  echo "performing build..."
+                } else {
+                  shouldBuild = false
+                  echo "not running..."
+                }
+                sh "echo ${shouldBuild}"
+                }
+             }
+      }
+
+      stage('Calculate release version'){         
+        when { expression { return shouldBuild && (env.gitlabSourceBranch == null || (env.gitlabSourceBranch.find(/^release\/.*/) || false)) } }
+           steps{
+              sh "echo ${shouldBuild}"
+              script{
+                try{
+                   sh "git switch release/${VERSION}"
+                  //Get the last/Current TAG,
+                    //Calulate new tag
+                  def current_tag = sh(returnStdout: true, script: 'git describe --tags --abbrev=0').trim()
+                  echo "current tag is $current_tag"
+                  def new_version = increment_tag(current_tag)
+                  sh "echo $new_version > v.txt"
+                                     
+                } catch (Exception e){
+                  sh "git switch -c release/${VERSION}"
+                  sh "echo '${VERSION} Not For release' > v.txt"
+              withCredentials([gitUsernamePassword(credentialsId: "${GITLAB_CRED_ID}", gitToolName: 'git-tool')]) {   
+                  sh 'git add v.txt'
+                  sh "git commit -m 'updated version.txt CI'"
+                  sh "git push origin release/${VERSION} "
+                  //Calculate Release and put into version.txt
+                  sh "echo ${VERSION}.1 > v.txt"
+                }
+
+                }
+              }
+          }
+      }
+
+      stage('Build') {
+        //  when { environment name: 'gitlabSourceBranch', value: 'master' }
+        // perform build
+        when { expression { return shouldBuild } }
+            steps {
+                //Try to echo from a text within a file
+                script{             
+                cosSayImage = docker.build("elior-cowsay")
+                sh "echo About to start deploy"
+                
+            }
+          
+        }
+     
+        }
+
+
+
+        stage('Test') {
+        when { expression { return shouldBuild && (env.gitlabSourceBranch == null || (env.gitlabSourceBranch.find(/^release\/.*/) || false)) } }
+            steps {   
+               sh """
+                docker run -dit --name cowsay_mission -p 4001:3001 -e PORT=3001 --network minimal-ci-lab_default  elior-cowsay
+                sleep 10
+                curl cowsay_mission:3001
+                """
+            }
+        }
+
+        stage('Clean Enviroment'){
+            when { expression { return shouldBuild && (env.gitlabSourceBranch == null || (env.gitlabSourceBranch.find(/^release\/.*/) || false)) } }
+            steps{
+                sh "docker rm cowsay_mission -f"
+            }
+          }
+
+        stage('Publish') {
+            when { expression { return shouldBuild && (env.gitlabSourceBranch == null || (env.gitlabSourceBranch.find(/^release\/.*/) || false)) } }
+            steps {
+                script{
+                    newTag = readFile(file: 'v.txt')
+                    docker.withRegistry("http://644435390668.dkr.ecr.eu-west-3.amazonaws.com", "ecr:eu-west-3:16f6c652-dbff-4944-a38b-fba1c8842d4c") {    
+                      //tag and push
+                      sh "docker tag elior-cowsay:latest 644435390668.dkr.ecr.eu-west-3.amazonaws.com/elior-cowsay:${newTag}"
+                      sh "docker push 644435390668.dkr.ecr.eu-west-3.amazonaws.com/elior-cowsay:${newTag}"
+                    }
+
+                }
+                     
+            }
+        }
+        stage('Update Repo'){
+            when { expression { return shouldBuild && (env.gitlabSourceBranch == null || (env.gitlabSourceBranch.find(/^release\/.*/) || false)) } }
+          steps{
+            script{
+              withCredentials([gitUsernamePassword(credentialsId: "${GITLAB_CRED_ID}", gitToolName: 'git-tool')]){
+                sh """
+                  git stash
+                  echo ' ' >> v.txt
+                  git commit -am 'New Version release by CI'
+                  git tag ${newTag}
+                  #git tag -m 'CI' -a ${newTag}
+                  git push origin release/${VERSION} ${newTag}
+                  """
+              }
+            }
+          }
+
+        }
+
+    }
+
+}
+
+

@@ -1,0 +1,108 @@
+def TESTRESULT
+
+pipeline{
+    agent any
+    tools{
+        jdk 'jdk-8'
+        maven 'mvn'
+    }
+    options {
+      gitLabConnection('gitlab_connection')
+      timestamps()
+    }
+    environment{
+        PRODUCTION_ONE = "13.39.50.76"
+        PRODUCTION_TWO = "15.188.11.39"
+    }
+
+    stages{
+        stage("checkout"){
+            steps{
+                echo "========executing checkout========"
+                sh "ls"
+                deleteDir()
+                sh "ls"
+                checkout scm
+            }
+        }
+        
+        stage("build + test"){
+            steps{
+                // configFileProvider([configFile(fileId: 'configforartifact', variable: 'MAVEN_SETTINGS')]){
+                //     sh "mvn -s ${MAVEN_SETTINGS} verify"
+                // }
+                withMaven(maven: 'mvn', mavenSettingsConfig: 'configforartifact') {
+                        sh 'mvn verify'
+                } 
+            }
+        }
+
+        stage("e2e test"){
+            steps{
+                 sh """
+                    cd src/test
+                    docker compose up --abort-on-container-exit --build
+                    """
+                script{
+                    TESTRESULT = sh(returnStdout: true, script: 'cd src/test && docker compose logs tester')
+                }
+                    sh """
+                    if [[ "${TESTRESULT}" == *"failures"* ]]; then
+                        exit 1
+                    else
+                        exit 0
+                    fi
+                       """
+               
+                
+            }
+        }
+
+        stage("publish to ecr"){
+            steps{
+                script{
+                    docker.withRegistry("http://644435390668.dkr.ecr.eu-west-3.amazonaws.com", "ecr:eu-west-3:16f6c652-dbff-4944-a38b-fba1c8842d4c") {    
+                    sh "docker tag elior-toxictypo:latest 644435390668.dkr.ecr.eu-west-3.amazonaws.com/elior-toxictypo:latest"
+                    sh "docker push 644435390668.dkr.ecr.eu-west-3.amazonaws.com/elior-toxictypo:latest"
+                    }
+                
+                }
+
+            }
+        }
+
+        stage("deploy"){
+            steps{
+                sh """
+                 scp init.sh init-prod.sh ubuntu@${PRODUCTION_ONE}:/home/ubuntu
+                 ssh ubuntu@${PRODUCTION_ONE} bash /home/ubuntu/init-prod.sh
+                 
+                 sleep 10
+
+                 curl -X POST -d "name=elior" ${PRODUCTION_ONE}/api/name
+
+                 scp init.sh ubuntu@${PRODUCTION_TWO}:/home/ubuntu
+                 ssh ubuntu@${PRODUCTION_TWO} bash /home/ubuntu/init.sh
+
+                 sleep 10
+                  
+                 curl -X POST -d "name=king" ${PRODUCTION_TWO}/api/name
+                 """
+            }
+        }
+
+    }
+    post{
+        failure{
+            updateGitlabCommitStatus name: 'build', state: 'failed'
+        }
+        
+        success{
+            updateGitlabCommitStatus name: 'build', state: 'success'
+        }
+
+        aborted{
+            updateGitlabCommitStatus name: 'build', state: 'canceled'
+        }
+    }
+}

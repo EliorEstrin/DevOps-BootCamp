@@ -1,0 +1,59 @@
+
+def shouldBuild=true
+
+pipeline{
+  agent any
+  tools{
+    jdk 'jdk-8'
+    maven 'mvn'
+  }
+
+    parameters {
+        string(name: 'VERSION', defaultValue: '1.0', description: 'The version to build')
+    }
+
+    stages{
+        stage("Checkout"){
+            steps{
+                echo "========Checkout========"
+                deleteDir()
+                checkout scm
+                script{
+                sh  "echo ${env.gitlabSourceBranch}" 
+                if (env.gitlabUserName == null || env.gitlabUserName != "jenkins") {
+                  echo "performing build..."
+                } else {
+                  shouldBuild = false
+                  echo "not running..."
+                }
+              }
+
+            }
+        }
+        stage("Build"){
+           when { expression { return shouldBuild && (env.gitlabSourceBranch == null || (env.gitlabSourceBranch.find(/^main/) || false)) } }
+            steps{
+            sh "mvn install"
+            }
+        }
+        stage("publish"){
+            when { expression { return shouldBuild && (env.gitlabSourceBranch == null || (env.gitlabSourceBranch.find(/^main/) || false)) } }
+            steps{
+                withMaven(maven: 'mvn', mavenSettingsConfig: 'configforartifact') {
+                        sh 'mvn deploy'
+                } 
+            }
+        }
+
+        stage("release"){
+          when { expression { return shouldBuild && (env.gitlabSourceBranch == null || (env.gitlabSourceBranch.find(/^main/) || false)) } }
+            steps{
+                withMaven(maven: 'mvn', mavenSettingsConfig: 'configforartifact') {
+                        sh "mvn versions:set -DnewVersion=${VERSION}"
+                        sh "mvn deploy"
+
+                } 
+            }
+        }
+    }
+}

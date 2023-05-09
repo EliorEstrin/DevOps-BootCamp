@@ -1,0 +1,106 @@
+pipeline{
+
+    agent any
+    tools{
+      jdk 'jdk-8'
+      maven 'mvn'
+    }
+
+    options {
+      gitLabConnection('gitlab_connection')
+      timestamps()
+    }
+    
+    stages{
+        stage("checkout"){
+            steps{
+                deleteDir()
+                checkout scm
+            }
+        }
+
+        stage("build"){
+            when { anyOf { branch "main"; branch "feature/*" } }
+            steps{
+                sh "mvn verify"
+            }
+        }
+
+        stage("e2e test"){
+            when { anyOf { branch "main"; branch "feature/*" } }
+            steps{
+                sh """
+                    docker rm -f app e2e || echo "eniroment is already clean"
+                    docker network create test || echo 'Test network alredy exists'
+
+                    docker build . -t elior-toxictypo
+                    docker build -t e2etesting -f Dockerfile.e2e .
+                    
+                    docker run -d  --network test --name app elior-toxictypo
+                    sleep 10
+                    docker run --network test --name e2e e2etesting
+                    """
+            }
+        }
+
+        stage("clean after e2e"){
+            when { anyOf { branch "main"; branch "feature/*" } }
+            steps{
+                sh "docker rm -f app e2e"
+                sh "docker network rm test"
+            }
+        }
+
+        stage("Publish")
+        {
+            when { anyOf { branch "main"; branch "feature/*" } }
+            steps{
+                sh "echo publishing to ecr"
+                script{
+                docker.withRegistry("http://644435390668.dkr.ecr.eu-west-3.amazonaws.com", "ecr:eu-west-3:16f6c652-dbff-4944-a38b-fba1c8842d4c") {    
+                sh "docker tag elior-toxictypo:latest 644435390668.dkr.ecr.eu-west-3.amazonaws.com/elior-toxictypo:latest"
+                sh "docker push 644435390668.dkr.ecr.eu-west-3.amazonaws.com/elior-toxictypo:latest"
+                }
+              }
+            }
+        }
+
+        stage("Deploy")
+        {
+            when { branch "main" }
+            steps{
+                sh """
+                 scp init.sh ubuntu@13.39.81.71:/home/ubuntu
+                 ssh ubuntu@13.39.81.71 bash /home/ubuntu/init.sh
+                 """
+
+            }
+        }
+
+    }
+
+     post {
+        
+
+      failure {     
+     mail subject: 'Build Report',
+          body: "The build has completed with status failure. Check the build results at ${env.BUILD_URL}.",
+          to: sh(returnStdout: true, script: 'git log --format="%ae" | head -1').trim();
+          updateGitlabCommitStatus name: 'build', state: 'failed'
+        
+      }
+      success {
+        mail subject: 'Build Report',
+          body: "The build has completed with status success!. Check the build results at ${env.BUILD_URL}.",
+          to: sh(returnStdout: true, script: 'git log --format="%ae" | head -1').trim();
+        updateGitlabCommitStatus name: 'build', state: 'success'
+
+        
+      }
+      aborted {
+        updateGitlabCommitStatus name: 'build', state: 'canceled'
+      }
+
+}
+
+}

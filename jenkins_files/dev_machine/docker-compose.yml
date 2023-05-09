@@ -1,0 +1,13 @@
+version: "3"
+
+services:
+  dev:
+    image: maven:3.8.6-jdk-8
+    command: sleep inf
+    volumes:
+      - m2repo:/root/.m2/repository
+      - ./toxictypoapp:/toxicApp
+    ports:
+      - 8080:8080
+volumes:
+  m2repo:
